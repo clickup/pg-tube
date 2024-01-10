@@ -1,0 +1,36 @@
+{
+  "name": "@time-loop/pg-tube",
+  "description": "A library to pipe replication stream (with initial full copy) to external destinations",
+  "version": "2.10.291",
+  "license": "MIT",
+  "bin": {
+    "pg-tube": "./dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc.sh",
+    "dev": "tight-loop.sh tsc.sh --watch",
+    "lint": "lint.sh",
+    "test": "test.sh",
+    "test:db": "set -e; FILES=(sql/__tests__/test_*.sql); f() { if [ \"$1\" != \"\" ]; then FILES=(sql/__tests__/$1); fi; for f in ${FILES[@]}; do echo == $f; yarn psql -f $f; echo; echo; done; }; f"
+  },
+  "dependencies": {
+    "chalk": "^4.1.2",
+    "log-update": "^4.0.0",
+    "minimist": "^1.2.5",
+    "p-defer": "^3.0.0",
+    "p-limit": "^3.1.0",
+    "pg-query-stream": "^3.4.2",
+    "table": "^6.8.0"
+  },
+  "peerDependencies": {
+    "lodash": "^4.17.21",
+    "pg": "^8.7.1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/time-loop/github-packages"
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com/"
+  }
+}
