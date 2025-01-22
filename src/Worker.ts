@@ -87,7 +87,7 @@ export default class Worker {
         const stream = this.upstream.podsStream(
           this.tube,
           this.partitions,
-          this.partition
+          this.partition,
         );
 
         for await (const pod of stream) {
@@ -109,7 +109,7 @@ export default class Worker {
             "BUG: non-empty fifos after drain\n" +
               inspect(options.downstream) +
               "\n" +
-              inspect(this)
+              inspect(this),
           );
         }
 
@@ -138,7 +138,7 @@ export default class Worker {
             shard: pod.shard,
             maxSeq: pod.payload.start_seq,
           },
-          () => this._seqTracker.addEmptySeq(pod.seq)
+          () => this._seqTracker.addEmptySeq(pod.seq),
         );
       } else if (pod.payload && pod.payload.type === "backfill_schedule") {
         await this.flushBatches(options, "drain");
@@ -149,7 +149,7 @@ export default class Worker {
             orderCol: pod.payload.order_col,
             shard: pod.shard,
           },
-          () => this._seqTracker.addEmptySeq(pod.seq)
+          () => this._seqTracker.addEmptySeq(pod.seq),
         );
       } else {
         // Unknown payload: since we have 0 ids, we just remove this pod.
@@ -176,7 +176,7 @@ export default class Worker {
    */
   private async flushBatches(
     options: WorkerRunOptions,
-    drain?: "drain"
+    drain?: "drain",
   ): Promise<void> {
     while (await this.flushBatch(options, drain)) {
       // pass
@@ -191,7 +191,7 @@ export default class Worker {
    */
   private async flushBatch(
     options: WorkerRunOptions,
-    drain?: "drain"
+    drain?: "drain",
   ): Promise<boolean> {
     const minBatchSize = drain ? 1 : options.downstream.batchSize;
 
@@ -221,7 +221,7 @@ export default class Worker {
             if (blockedTouch) {
               this._incomingTouches.moveFrom(
                 this._blockedTouches,
-                blockedTouch
+                blockedTouch,
               );
             }
           }
@@ -250,7 +250,7 @@ export default class Worker {
         this.tube,
         this.partitions,
         this.partition,
-        deleted
+        deleted,
       );
     }
   }

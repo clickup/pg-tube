@@ -14,7 +14,7 @@ export interface GarbageOptions {
   readonly fetch: (
     shard: number,
     maxSeq: string,
-    cursor: string | undefined
+    cursor: string | undefined,
   ) => Promise<{ ids: string[]; cursor?: string }>;
   /** Sends a deletion touch event to a downstream. */
   readonly send: (touches: Touch[]) => Promise<void>;
@@ -58,7 +58,7 @@ export default class Garbage {
    */
   scheduleCollect(
     options: GarbageScheduleCollectOptions,
-    onDone: () => void
+    onDone: () => void,
   ): void {
     if (this._collectingShards.has(options.shard)) {
       return;
@@ -93,7 +93,7 @@ export default class Garbage {
 
   private async collectImpl(
     { shard, maxSeq }: GarbageScheduleCollectOptions,
-    onDone: () => void
+    onDone: () => void,
   ): Promise<void> {
     let lastEmptyIdsTime: bigint | null = null;
     let lastCursor: any = undefined;
@@ -109,7 +109,7 @@ export default class Garbage {
       }
 
       const { ids, cursor } = await this._fetchPool.through(async () =>
-        this._options.fetch(shard, maxSeq, lastCursor)
+        this._options.fetch(shard, maxSeq, lastCursor),
       );
       lastCursor = cursor;
 
@@ -127,7 +127,7 @@ export default class Garbage {
             shard,
             id,
             hrtime,
-          }))
+          })),
         );
       } else {
         lastCursor = undefined;

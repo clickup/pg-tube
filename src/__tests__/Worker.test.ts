@@ -82,11 +82,11 @@ async function setUp({
   `);
 
   const config = {
-    host: process.env.PGHOST || process.env.DB_HOST_DEFAULT,
-    port: parseInt(process.env.PGPORT || process.env.DB_PORT || "5432"),
-    database: process.env.PGDATABASE || process.env.DB_DATABASE,
-    user: process.env.PGUSER || process.env.DB_USER,
-    password: process.env.PGPASSWORD || process.env.DB_PASS,
+    host: process.env["PGHOST"] || process.env["DB_HOST_DEFAULT"],
+    port: parseInt(process.env["PGPORT"] || process.env["DB_PORT"] || "5432"),
+    database: process.env["PGDATABASE"] || process.env["DB_DATABASE"],
+    user: process.env["PGUSER"] || process.env["DB_USER"],
+    password: process.env["PGPASSWORD"] || process.env["DB_PASS"],
   };
   const database = new Database({
     config,
@@ -262,7 +262,7 @@ it("should process backfill", async () => {
   expect(
     flatten(touches)
       .filter(({ op }) => op === Op.BACKFILL)
-      .map(({ id }) => id)
+      .map(({ id }) => id),
   ).toEqual([
     "1",
     "2",
@@ -306,7 +306,7 @@ it("should recover on processing errors", async () => {
     }
 
     throw Error(
-      "Expecting process() to throw through, but the worker loop succeeded"
+      "Expecting process() to throw through, but the worker loop succeeded",
     );
   } catch (e: any) {
     if (!e.message.includes("process() threw")) {

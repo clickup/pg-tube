@@ -40,7 +40,7 @@ export default class Database {
   constructor(options: DatabaseOptions) {
     this._statementTimeoutMs = options.config.statement_timeout || 10000;
     this._statementTimeoutMsMaintenance = Math.round(
-      this._statementTimeoutMs * 1.5
+      this._statementTimeoutMs * 1.5,
     );
     this.config = {
       idleTimeoutMillis: IDLE_TIMEOUT_MS,
@@ -95,7 +95,7 @@ export default class Database {
       () => {},
       this._statementTimeoutMsMaintenance,
       query,
-      ...params
+      ...params,
     );
   }
 
@@ -155,7 +155,7 @@ export default class Database {
   async *queryStream<TRow>(
     queryGen: [string, ...unknown[]],
     batchSize = 100,
-    comment: string
+    comment: string,
   ): AsyncIterable<TRow> {
     const sqlCommentPrefix = `/*${comment}*/ `;
     const client = await this._directPool.connect();
@@ -173,7 +173,7 @@ export default class Database {
       })) as any;
       const sql: string = res[queries.length - 1].rows[0][0];
       const stream = client.query(
-        new PgQueryStream(sqlCommentPrefix + sql, undefined, { batchSize })
+        new PgQueryStream(sqlCommentPrefix + sql, undefined, { batchSize }),
       );
       let consumedFully = false;
       try {
@@ -186,7 +186,7 @@ export default class Database {
             "\n" +
             inspect(
               { queries, sql: sql.trim().replace(/\s+/gs, " ") },
-              { compact: true }
+              { compact: true },
             );
         }
 

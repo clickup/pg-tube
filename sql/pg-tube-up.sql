@@ -6,7 +6,8 @@ DROP FUNCTION IF EXISTS tube_stats() \gset
 DROP FUNCTION IF EXISTS tube_list(regclass) \gset
 DROP FUNCTION IF EXISTS tube_ensure_exists(text, integer) \gset
 DROP FUNCTION IF EXISTS _tube_ensure_touch_funcs(text) \gset
-DROP FUNCTION IF EXISTS tube_pods_insert(text, text, integer, char, bigint, integer, integer);
+DROP FUNCTION IF EXISTS tube_pods_insert(text, text, integer, char, bigint, integer, integer) \gset
+DROP FUNCTION IF EXISTS tube_pods_sql(text, integer, integer) \gset
 
 \ir ./functions/_tube_count.sql
 \ir ./functions/_tube_ensure_indexes.sql
@@ -44,10 +45,23 @@ COMMENT ON SEQUENCE tube_seq
 DO $$
 DECLARE
   rec record;
+  tables text;
 BEGIN
+  tables := array_to_string(
+    ARRAY(
+      SELECT DISTINCT tbl::text FROM tube_list() WHERE tbl IS NOT NULL
+      UNION ALL
+      SELECT DISTINCT tube::text FROM tube_list()
+    ),
+    ', '
+  );
+  IF tables <> '' THEN
+    RAISE NOTICE 'Blocking writes to all tables for pg-tube upgrade. Reads are still working. Please wait until all other app''s writes finish or timeout. You may monitor long running writes with e.g. pg_activity shell CLI tool. Tables: %', tables;
+    EXECUTE format('LOCK TABLE %s IN EXCLUSIVE MODE', tables);
+  END IF;
   FOR rec IN SELECT DISTINCT tube, partitions, predicate FROM tube_list() LOOP
     PERFORM tube_ensure_exists(rec.tube, rec.partitions, rec.predicate);
-    RAISE NOTICE 'Tube "%" with % partition(s) and "%" prediate updated',
+    RAISE NOTICE 'Tube "%" with % partition(s) and "%" predicate updated',
       rec.tube, rec.partitions, COALESCE(rec.predicate, '');
   END LOOP;
 END;

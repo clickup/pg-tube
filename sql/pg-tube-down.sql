@@ -21,7 +21,7 @@ DROP FUNCTION tube_ensure_exists(text, integer, text);
 DROP FUNCTION tube_list(regclass);
 DROP FUNCTION tube_pods_delete(text, integer, integer, bigint[]);
 DROP FUNCTION tube_pods_insert(text, text, integer, char, bigint, integer, integer);
-DROP FUNCTION tube_pods_sql(text, integer, integer);
+DROP FUNCTION tube_pods_sql(text, integer, integer, boolean);
 DROP FUNCTION tube_stats();
 DROP FUNCTION tube_table_ensure_attached(text, regclass, integer);
 DROP FUNCTION tube_table_ensure_detached(text, regclass);

@@ -27,23 +27,25 @@
  * ```
  *
  * Why 3 steps and not 2? It's complicated. The picture below shows, what would
- * happen if we had no step2 in between step1 and step3. First, step1 would row
- * seq=51, but it wouldn't wait for INSERT transaction to finish, because it
- * doesn't see it (INSERT started later, after step1 snapshot was taken). The
- * same way, step3 wouldn't be able to wait for INSERT termination either,
+ * happen if we had no step2 in between step1 and step3. First, step1 would
+ * return seq=51, but it wouldn't wait for INSERT transaction to finish, because
+ * it doesn't see it (INSERT started later, after step1 call started executing).
+ * The same way, step3 wouldn't be able to wait for INSERT termination either,
  * because it also doesn't see it (INSERT hasn't been committed by the moment
- * step3 took the snapshot). As a result, the order of events appeared in the
- * tube is: 51, 50, 52, 53, 54, and the signal to GC is "remove everyting less
- * than 51" - which is wrong: the step3 snapshot wouldn't emit the row inserted
- * by INSERT since it hasn't seen it. Thus, we would lose that INSERT.
+ * step3 started executing). As a result, the order of events pulled from the
+ * tube by a worker is: 51 | 50 | 52 | 53 | 54, and the signal to GC after the
+ * backfill finishes is "remove everything less than 51" WILL BE WRONG: the
+ * step3 snapshot wouldn't emit the row inserted by INSERT since it hasn't seen
+ * it. Thus, GC would delete that downstream document with seq=50, so we would
+ * lose that INSERT.
  * ```
  * +--------------------+                 +------------------------------+
  * | step1  seq++  wait |                 | step3   wait    seq=52,53,54 |
  * +----------|---------+                 +------------------------------+
- *            51
- *         50
+ *            51                            puts visible rows to the tube,
+ *         50                               but it doesn't see INSERT below
  *    +----|------------------------------------+
- *    | INSERT  seq++                           |
+ *    | INSERT  id=N  seq++                     |
  *    +-----------------------------------------+
  * ```
  *
@@ -51,17 +53,19 @@
  * guarantee that step3 will always see rows inserted before it started. That
  * means that step3 will just replay the row added by INSERT earlier since it
  * sees it in its snapshot. The order of events is the same: 51, 50, 52, 53, 54,
- * BUT now step3 emits the same row as INSERT touched (because it sees it), and
- * thus, it's safe to tell the GC "delete everything with seq < 51".
+ * BUT now step3 sees that row which INSERT touched, and thus, it will include
+ * this INSERT row id in the backfill pods (with seq=52,53,...). So, it will be
+ * safe to tell the GC "delete everything with seq < 51": our INSERT row will
+ * appear in the backfill pods with seq>=52.
  * ```
- * +---------------+     +-------------+     +----------------------+
- * | step1  seq++  |     | step2  wait |     | step3   seq=52,53,54 |
- * +----------|----+     +-------------+     +----------------------+
- *            51
- *         50
- *    +----|------------------------+
- *    | INSERT  seq++               |
- *    +-----------------------------+
+ * +---------------+  +-------------+  +-----------------------------------+
+ * | step1  seq++  |  | step2  wait |  | step3   seq=52,53,54 ids=(N, ...) |
+ * +----------|----+  +-------------+  +-----------------------------------+
+ *            51                         put visible rows to the tube,
+ *         50                            including that INSERT below
+ *    +----|------------------+
+ *    | INSERT  id=N  seq++   |
+ *    +-----------------------+
  * ```
  */
 CREATE OR REPLACE FUNCTION tube_backfill_step3(

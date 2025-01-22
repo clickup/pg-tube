@@ -12,6 +12,8 @@ DECLARE
   got text;
 BEGIN
   EXECUTE sql INTO got;
+  got := trim(E' \t\n' from regexp_replace(got, E'^[ \t]+', '', 'mg'));
+  exp := trim(E' \t\n' from regexp_replace(exp, E'^[ \t]+', '', 'mg'));
   IF got IS DISTINCT FROM exp THEN
     RAISE EXCEPTION 'Expectation failed (%): expected %, got %', msg, exp, got;
   END IF;

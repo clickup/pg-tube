@@ -99,7 +99,7 @@ earlier than the backfill has started”. All found ids get removed (in fact, th
 exactly same workflow applies as for deletion, with enrichment etc., to
 eliminate race conditions).
 
-For the future, noone in theory stops us from writing an arbitrary value to
+For the future, no-one in theory stops us from writing an arbitrary value to
 `touch.shard` at the moment of its injection into the tube. In this sense, the
 naming is slightly misleading: it should've been named `touch.routing`, not
 `touch.shard`, since it only determines the downstream routing, and it also
@@ -113,7 +113,7 @@ tube trigger (available via `TG_ARGV[0]`) which receives a set of
 inserted/updated/deleted rows.
 
 So, it seems like a doable feature, to implement custom routing. Unfortunately,
-implementing it is waaay not so easy. This is mainly because of the above static
+implementing it is way not so easy. This is mainly because of the above static
 assumptions (like if we receive a batch of touched rows in the tube trigger, we
 always assume they relate to the same shard, since the shard is determined by
 the table's schema).

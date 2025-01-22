@@ -52,7 +52,7 @@ export default class OwningFifo<TTouch extends OwningFifoTouch> {
       throw Error(`BUG: touch id=${id} doesn't exist`);
     } else if (srcTouch.seq !== seq) {
       throw Error(
-        `BUG: touch (seq=${seq}, id=${id}) can't be moved since its seq is different in the source fifo (seq=${srcTouch.seq}, id=${id})`
+        `BUG: touch (seq=${seq}, id=${id}) can't be moved since its seq is different in the source fifo (seq=${srcTouch.seq}, id=${id})`,
       );
     }
 
@@ -71,7 +71,7 @@ export default class OwningFifo<TTouch extends OwningFifoTouch> {
       throw Error(`BUG: touch (id=${id}, seq=${seq}) doesn't exist`);
     } else if (touch.seq !== seq) {
       throw Error(
-        `BUG: touch (seq=${seq}, id=${id}) can't be consumed since its seq is different than the one in the fifo (seq=${touch.seq}, id=${id})`
+        `BUG: touch (seq=${seq}, id=${id}) can't be consumed since its seq is different than the one in the fifo (seq=${touch.seq}, id=${id})`,
       );
     }
 

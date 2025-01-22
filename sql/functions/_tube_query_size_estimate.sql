@@ -18,7 +18,7 @@ BEGIN
   IF rows < THRESHOLD THEN
     number := rows;
     human := rows;
-    precise := true;
+    precise := TRUE;
     RETURN;
   END IF;
 

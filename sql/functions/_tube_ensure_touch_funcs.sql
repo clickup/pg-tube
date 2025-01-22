@@ -116,6 +116,6 @@ END;
 $$;
 
 COMMENT ON FUNCTION _tube_ensure_touch_funcs(text, text)
-  IS 'Recreates {tube}_touch() and {tube}_trigger() functions to accomodate '
+  IS 'Recreates {tube}_touch() and {tube}_trigger() functions to accommodate '
      'changes after some tube is created. If predicate is specified, then '
      'the trigger will only insert ids that match the predicate.';

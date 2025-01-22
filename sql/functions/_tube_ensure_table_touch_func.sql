@@ -66,4 +66,4 @@ END;
 $$;
 
 COMMENT ON FUNCTION _tube_ensure_table_touch_func(regclass)
-  IS 'Recreates {table_name}_touch() function to accomodate changes after some tube is attached/detached.';
+  IS 'Recreates {table_name}_touch() function to accommodate changes after some tube is attached/detached.';

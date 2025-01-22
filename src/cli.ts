@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 import chalk from "chalk";
 import flatten from "lodash/flatten";
 import sum from "lodash/sum";
@@ -67,22 +68,22 @@ const COLUMNS = {
 };
 
 export async function main(
-  argv: string[],
-  databaseOptions?: DatabaseOptions[]
+  argsIn: string[],
+  databaseOptions?: DatabaseOptions[],
 ): Promise<boolean> {
-  const args = minimist(argv, {
+  const args = minimist(argsIn, {
     string: ["tube", "order", "shards", "partitions", "predicate"],
   });
 
   if (!databaseOptions) {
-    const hosts = (process.env.PGHOST || "localhost")
+    const hosts = (process.env["PGHOST"] || "localhost")
       .split(/[\s,;]+/)
       .filter((v) => v);
-    const port = parseInt(process.env.PGPORT || "5432");
-    const user = process.env.PGUSER || "";
-    const password = process.env.PGPASSWORD || "";
-    const database = process.env.PGDATABASE || "";
-    const schema = process.env.PGSCHEMA || undefined;
+    const port = parseInt(process.env["PGPORT"] || "5432");
+    const user = process.env["PGUSER"] || "";
+    const password = process.env["PGPASSWORD"] || "";
+    const database = process.env["PGDATABASE"] || "";
+    const schema = process.env["PGSCHEMA"] || undefined;
     databaseOptions = hosts.map((host) => {
       const config = { host, port, user, password, database };
       return { config, directConfig: config, schema };
@@ -95,67 +96,73 @@ export async function main(
   }
 
   if (args._[0] === "backfill") {
-    if (typeof args.tube !== "string" || !args.tube) {
+    if (typeof args["tube"] !== "string" || !args["tube"]) {
       throw "Please provide --tube, tube name to backfill";
-    } else if (typeof args.order !== "string" || !args.tube) {
+    } else if (typeof args["order"] !== "string" || !args["tube"]) {
       throw "Please provide --order, column name to order backfill by";
-    } else if (typeof args.shards !== "string" || !args.shards) {
+    } else if (typeof args["shards"] !== "string" || !args["shards"]) {
       throw 'Please provide --shards, shard number or N-M interval or "all" to backfill';
     }
 
     const num = await scheduleBackfill(
       databaseOptions,
-      args.tube,
-      args.order,
-      args.shards
+      args["tube"],
+      args["order"],
+      args["shards"],
     );
 
-    log(`Scheduled backfill for ${num} shard(s).`);
+    log(`Scheduled backfill for ${num} microshard(s).`);
     await renderLoop(databaseOptions, undefined, 1);
     return true;
   }
 
   if (args._[0] === "pods-insert") {
-    if (typeof args.tube !== "string" || !args.tube) {
+    if (typeof args["tube"] !== "string" || !args["tube"]) {
       throw "Please provide --tube, tube name to insert pods";
     } else if (
-      typeof args.query !== "string" ||
-      args.query.length === 0 ||
-      !args.query
+      typeof args["query"] !== "string" ||
+      args["query"].length === 0 ||
+      !args["query"]
     ) {
       throw "Please provide --query, query to insert pods";
-    } else if (typeof args.shard !== "number" || !args.shard) {
+    } else if (typeof args["shard"] !== "number" || !args["shard"]) {
       throw "Please provide --shard, shard number to insert pods";
     }
 
-    await podsInsert(databaseOptions, args.tube, args.query, args.shard);
-    log(`Scheduled pods for query ${args.query} on shard ${args.shard}.`);
+    await podsInsert(
+      databaseOptions,
+      args["tube"],
+      args["query"],
+      args["shard"],
+    );
+    log(`Scheduled pods for query ${args["query"]} on shard ${args["shard"]}.`);
     return true;
   }
 
   if (args._[0] === "exists") {
-    if (typeof args.tube !== "string" || !args.tube) {
+    if (typeof args["tube"] !== "string" || !args["tube"]) {
       throw "Please provide --tube, tube name to backfill";
     } else if (
-      args.partitions !== undefined &&
-      (typeof args.partitions !== "string" || !args.partitions.match(/^\d+$/s))
+      args["partitions"] !== undefined &&
+      (typeof args["partitions"] !== "string" ||
+        !args["partitions"].match(/^\d+$/s))
     ) {
       throw "Invalid value in --partitions, number of partitions";
     } else if (
-      args.predicate !== undefined &&
-      typeof args.predicate !== "string"
+      args["predicate"] !== undefined &&
+      typeof args["predicate"] !== "string"
     ) {
       throw "Invalid value in --predicate, tube SQL predicate expression";
     }
 
     await ensureExists(
       databaseOptions,
-      args.tube,
-      args.partitions ? parseInt(args.partitions) : undefined,
-      args.predicate ?? undefined
+      args["tube"],
+      args["partitions"] ? parseInt(args["partitions"]) : undefined,
+      args["predicate"] ?? undefined,
     );
 
-    log(`Scheduled backfill for ${args.num} shard(s).`);
+    log(`Scheduled backfill for ${args["num"]} microshard(s).`);
     await renderLoop(databaseOptions, undefined, 1);
     return true;
   }
@@ -167,7 +174,7 @@ export async function main(
 export async function renderLoop(
   databaseOptions: DatabaseOptions[],
   renderHeader?: () => Promise<{ header: string; mainTubes: string[] }>,
-  iterations = Number.MAX_SAFE_INTEGER
+  iterations = Number.MAX_SAFE_INTEGER,
 ): Promise<void> {
   const upstreams = createUpstreams(databaseOptions);
   for (let i = 0; i < iterations; i++) {
@@ -176,15 +183,15 @@ export async function renderLoop(
       : { header: "", mainTubes: [] };
     const rows = flatten(
       await Promise["all"](
-        upstreams.map(async (upstream) => renderDatabase(upstream, mainTubes))
-      )
+        upstreams.map(async (upstream) => renderDatabase(upstream, mainTubes)),
+      ),
     );
     const tableStr = table(
       [Object.values(COLUMNS).map(({ caption }) => caption), ...rows],
       {
         drawHorizontalLine: (i, rowCount) =>
           i === 0 || i === 1 || i === rowCount,
-      }
+      },
     );
     log(header + (header ? "\n" : "") + tableStr);
     await delay(500);
@@ -195,7 +202,7 @@ export async function scheduleBackfill(
   databaseOptions: DatabaseOptions[],
   tube: string,
   orderCol: string,
-  shards: string
+  shards: string,
 ): Promise<number> {
   let shardFrom: number;
   let shardTo: number | undefined;
@@ -215,9 +222,9 @@ export async function scheduleBackfill(
   return sum(
     await Promise["all"](
       upstreams.map(async (upstream) =>
-        upstream.scheduleBackfill(tube, orderCol, shardFrom, shardTo)
-      )
-    )
+        upstream.scheduleBackfill(tube, orderCol, shardFrom, shardTo),
+      ),
+    ),
   );
 }
 
@@ -225,15 +232,15 @@ export async function podsInsert(
   databaseOptions: DatabaseOptions[],
   tube: string,
   query: string,
-  shard: number
+  shard: number,
 ): Promise<number> {
   const upstreams = createUpstreams(databaseOptions);
   return sum(
     await Promise["all"](
       upstreams.map(async (upstream) =>
-        upstream.podsInsert(1000 * 60 * 60, tube, [query], shard, Op.BACKFILL)
-      )
-    )
+        upstream.podsInsert(1000 * 60 * 60, tube, [query], shard, Op.BACKFILL),
+      ),
+    ),
   );
 }
 
@@ -241,7 +248,7 @@ export async function ensureExists(
   databaseOptions: DatabaseOptions[],
   tube: string,
   partitions: number | undefined,
-  predicate: string | undefined
+  predicate: string | undefined,
 ): Promise<void> {
   for (const upstream of createUpstreams(databaseOptions)) {
     const newPartitions = partitions ?? (await upstream.partitions(tube)) ?? 1;
@@ -250,7 +257,7 @@ export async function ensureExists(
       `Ensuring ${tube} exists ` +
         `with "${newPredicate}" predicate ` +
         `and ${newPartitions} partitions ` +
-        `on ${upstream.database.config.host}...`
+        `on ${upstream.database.config.host}...`,
     );
     log.done();
     await upstream.ensureExists(tube, newPartitions, newPredicate);
@@ -270,7 +277,7 @@ function createUpstreams(databaseOptions: DatabaseOptions[]): Upstream[] {
         chunkSize: 1,
         reopenMinMs: 1000,
         reopenMaxMs: 10000,
-      })
+      }),
   );
 }
 
@@ -278,13 +285,13 @@ const colorsCache = new Map<string, (v: string) => string>();
 
 async function renderDatabase(
   upstream: Upstream,
-  mainTubes: string[]
+  mainTubes: string[],
 ): Promise<string[][]> {
   const stats = await upstream.stats();
   const common = { host: upstream.database.config.host };
   return stats.map((row) => {
     const colorSourceKey = Object.entries(COLUMNS).find(
-      ([_, v]) => "colorSource" in v && v.colorSource
+      ([_, v]) => "colorSource" in v && v.colorSource,
     )?.[0]!;
     let color = (v: string): string => v;
     if (colorSourceKey) {
@@ -302,12 +309,12 @@ async function renderDatabase(
         k === "backfill_seq"
           ? renderSeq(row.backfill_min_seq, row.backfill_max_seq)
           : k === "inc_seq"
-          ? renderSeq(row.inc_min_seq, row.inc_max_seq)
-          : k === "backfill_lag"
-          ? renderLag(row.backfill_min_ts, new Date()) // backfill lag is always relative to the current time
-          : k === "inc_lag"
-          ? renderLag(row.inc_min_ts, row.inc_max_ts)
-          : data[k as keyof typeof data];
+            ? renderSeq(row.inc_min_seq, row.inc_max_seq)
+            : k === "backfill_lag"
+              ? renderLag(row.backfill_min_ts, new Date()) // backfill lag is always relative to the current time
+              : k === "inc_lag"
+                ? renderLag(row.inc_min_ts, row.inc_max_ts)
+                : data[k as keyof typeof data];
       if (k === "tube" && typeof v === "string" && mainTubes.includes(v)) {
         v += " *";
       }
@@ -346,12 +353,19 @@ function renderLag(min: Date | null, max: Date | null): string {
   return text.join(" ");
 }
 
-if (require.main === module) {
+/**
+ * A wrapper around main() to call it from a bin script.
+ */
+export function cli(): void {
   main(process.argv.slice(2))
     .then((success) => process.exit(success ? 0 : 1))
     .catch((e) => {
       log.done();
-      log(e);
+      log(e instanceof Error ? (e.stack ?? e.message).trim() : e);
       process.exit(1);
     });
+}
+
+if (require.main === module) {
+  cli();
 }

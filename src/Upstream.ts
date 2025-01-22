@@ -95,6 +95,10 @@ export interface UpstreamOptions {
   /** If more than this number of pods is loaded from the stream, the stream
    * will be reopened. */
   readonly maxPods?: number;
+  /** If true, then backfill pods won't be returned. This mode is useful to e.g.
+   * turn on graceful degradation mode to temporarily reduce the load on the
+   * downstream when an outage or downstream overloading is happening. */
+  readonly excludeBackfill?: boolean;
   /** Allows to log different events from the upstream. */
   readonly logger?: (event: UpstreamLogEvent, seqs?: string[]) => void;
 }
@@ -130,16 +134,16 @@ export default class Upstream {
       },
       async () => {
         const rows = await this.database.query<[string, number]>(
-          "SELECT DISTINCT tube, partitions FROM tube_list() ORDER BY 1"
+          "SELECT DISTINCT tube, partitions FROM tube_list() ORDER BY 1",
         );
 
         return flatMap(rows, ([tube, partitions]) =>
           range(0, partitions).map(
             (partition) =>
-              new Worker({ upstream: this, tube, partitions, partition })
-          )
+              new Worker({ upstream: this, tube, partitions, partition }),
+          ),
         );
-      }
+      },
     );
   }
 
@@ -154,9 +158,9 @@ export default class Upstream {
       async () =>
         flatMap(
           await this.database.query<string[]>(
-            "SELECT DISTINCT tube FROM tube_list() ORDER BY 1"
-          )
-        )
+            "SELECT DISTINCT tube FROM tube_list() ORDER BY 1",
+          ),
+        ),
     );
   }
 
@@ -167,12 +171,12 @@ export default class Upstream {
     const rows: Array<typeof STATS_EXAMPLE> = [];
     for (const row of await this.database.query<any[]>(
       "SET TRANSACTION ISOLATION LEVEL REPEATABLE READ; " +
-        `SELECT ${Object.keys(STATS_EXAMPLE).join(", ")} FROM tube_stats()`
+        `SELECT ${Object.keys(STATS_EXAMPLE).join(", ")} FROM tube_stats()`,
     )) {
       rows.push(
         Object.fromEntries(
-          Object.keys(STATS_EXAMPLE).map((k, i) => [k, row[i]] as const)
-        ) as any
+          Object.keys(STATS_EXAMPLE).map((k, i) => [k, row[i]] as const),
+        ) as any,
       );
     }
 
@@ -185,7 +189,7 @@ export default class Upstream {
   async partitions(tube: string): Promise<number | null> {
     const rows = await this.database.query<[number]>(
       "SELECT DISTINCT partitions FROM tube_list() WHERE tube=$1",
-      tube
+      tube,
     );
     return rows.length > 0 ? rows[0][0] : null;
   }
@@ -197,7 +201,7 @@ export default class Upstream {
   async predicate(tube: string): Promise<string | null> {
     const rows = await this.database.query<[string | null]>(
       "SELECT DISTINCT predicate FROM tube_list() WHERE tube=$1",
-      tube
+      tube,
     );
     return rows.length > 0 ? rows[0][0] ?? "" : null;
   }
@@ -211,7 +215,7 @@ export default class Upstream {
     tube: string,
     partitions: number,
     predicate: string,
-    tables?: Array<{ table: string; shard: number } | string>
+    tables?: Array<{ table: string; shard: number } | string>,
   ): Promise<void> {
     if (partitions < 1 || partitions > 100) {
       throw Error(`Invalid number of partitions: ${partitions}`);
@@ -230,7 +234,7 @@ export default class Upstream {
           "SELECT tube_ensure_exists($1, $2, $3)",
           tube,
           partitions,
-          predicate
+          predicate,
         );
         if (tables) {
           for (const tbl of tables) {
@@ -240,11 +244,11 @@ export default class Upstream {
               "SELECT tube_table_ensure_attached($1, $2, $3)",
               tube,
               table,
-              shard
+              shard,
             );
           }
         }
-      }
+      },
     );
   }
 
@@ -260,9 +264,9 @@ export default class Upstream {
       async () => {
         await this.database.maintenanceQuery(
           "SELECT tube_ensure_absent($1)",
-          tube
+          tube,
         );
-      }
+      },
     );
   }
 
@@ -274,14 +278,14 @@ export default class Upstream {
     tube: string,
     orderCol: string,
     shardFrom: number,
-    shardTo?: number
+    shardTo?: number,
   ): Promise<number> {
     const [[num]] = await this.database.query<[number]>(
       "SELECT tube_backfill_schedule($1, $2, $3, $4)",
       tube,
       orderCol,
       shardFrom,
-      shardTo ?? 0x7fffffff
+      shardTo ?? 0x7fffffff,
     );
     return num;
   }
@@ -294,15 +298,21 @@ export default class Upstream {
   async *podsStream(
     tube: string,
     partitions: number,
-    partition: number
+    partition: number,
   ): AsyncIterable<Pod> {
     const streamStart = process.hrtime.bigint();
 
     // See https://stackoverflow.com/a/42294524 why not cursor & FETCH ALL.
     const stream = this.database.queryStream<Pod & { ids: string | string[] }>(
-      ["SELECT tube_pods_sql($1, $2, $3)", tube, partitions, partition],
+      [
+        "SELECT tube_pods_sql($1, $2, $3, $4)",
+        tube,
+        partitions,
+        partition,
+        !!this._options.excludeBackfill,
+      ],
       this._options.chunkSize,
-      `${tube}:${partition}`
+      `${tube}:${partition}`,
     );
 
     let podCount = 0;
@@ -362,7 +372,7 @@ export default class Upstream {
     tube: string,
     partitions: number,
     partition: number,
-    seqs: string[]
+    seqs: string[],
   ): Promise<void> {
     if (seqs.length === 0) {
       return;
@@ -382,9 +392,9 @@ export default class Upstream {
           tube,
           partitions,
           partition,
-          "{" + seqs.join(",") + "}"
+          "{" + seqs.join(",") + "}",
         ),
-      seqs
+      seqs,
     );
   }
 
@@ -406,14 +416,14 @@ export default class Upstream {
     tubeOrTubes: string | string[],
     queryIn: [string, ...unknown[]],
     shard: number,
-    op: Op
+    op: Op,
   ): Promise<void> {
     const tubes = (
       typeof tubeOrTubes === "string" ? [tubeOrTubes] : tubeOrTubes
     ).join(",");
     const query = interpolate(
       addRowNumberOver(queryIn[0]),
-      ...queryIn.slice(1)
+      ...queryIn.slice(1),
     );
     let timeStart = process.hrtime.bigint();
     let lastNotice: string | undefined = undefined;
@@ -457,8 +467,8 @@ export default class Upstream {
           tubes,
           query,
           shard,
-          op
-        )
+          op,
+        ),
     );
   }
 
@@ -470,7 +480,7 @@ export default class Upstream {
     tube: string,
     tbl: string,
     orderCol: string,
-    shard: number
+    shard: number,
   ): Promise<void> {
     let timeStart = process.hrtime.bigint();
     let lastNotice: string | undefined = undefined;
@@ -508,7 +518,7 @@ export default class Upstream {
       },
       async () => {
         const [[step1]] = await this.database.query<[string]>(
-          "SELECT tube_backfill_step1()"
+          "SELECT tube_backfill_step1()",
         );
 
         timeStart = process.hrtime.bigint();
@@ -516,7 +526,7 @@ export default class Upstream {
           noticeLogger,
           timeoutMs,
           "SELECT tube_backfill_step2($1)",
-          `${timeoutMs - 1000} ms`
+          `${timeoutMs - 1000} ms`,
         );
 
         timeStart = process.hrtime.bigint();
@@ -528,9 +538,9 @@ export default class Upstream {
           tube,
           tbl,
           orderCol,
-          shard
+          shard,
         );
-      }
+      },
     );
   }
 
@@ -540,7 +550,7 @@ export default class Upstream {
   private async wrapLogger<TRet>(
     event: UpstreamLogEventBody,
     func: () => Promise<TRet>,
-    seqs?: string[]
+    seqs?: string[],
   ): Promise<TRet> {
     const timeStart = process.hrtime.bigint();
     try {
@@ -552,7 +562,7 @@ export default class Upstream {
           island: this._options.island,
           duration: deltaMs(timeStart),
         },
-        seqs
+        seqs,
       );
     }
   }
@@ -577,25 +587,26 @@ const STATS_EXAMPLE = {
 };
 
 export function parseNotice(
-  notice: string
+  notice: string,
 ): Partial<Record<string, string | null>> {
   return Object.fromEntries(
     compact(
       notice
         .trim()
+        .replace(/\s*--.*/s, "")
         .split(/\s+/)
         .map((pair) =>
           pair.match(/^(\w+)=(.*)$/)
             ? [RegExp.$1, RegExp.$2 === "<NULL>" ? null : RegExp.$2]
-            : null
-        )
-    )
+            : null,
+        ),
+    ),
   );
 }
 
 function parseNoticePodIdsTotal(notice: string): number | undefined {
   const parsed = parseNotice(notice);
-  return parsed.insert_finished === "t"
-    ? parseInt(parsed.insert_ids ?? "0")
+  return parsed["insert_finished"] === "t"
+    ? parseInt(parsed["insert_ids"] ?? "0")
     : undefined;
 }

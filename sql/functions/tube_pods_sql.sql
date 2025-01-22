@@ -1,7 +1,9 @@
+
 CREATE OR REPLACE FUNCTION tube_pods_sql(
   tube text,
   partitions integer,
-  partition integer
+  partition integer,
+  exclude_backfill boolean = FALSE
 ) RETURNS text
 LANGUAGE plpgsql
 SET search_path FROM CURRENT
@@ -15,17 +17,28 @@ BEGIN
       tube, partitions, actual_partitions;
   END IF;
   RETURN _tube_template(
-    $sql$
-      (SELECT seq, op, shard, ids::text, payload
-        FROM "{I:tube}"
-        WHERE shard % {SQL:partitions} = {SQL:partition} AND op <> 'B'
-        ORDER BY seq)
-      UNION ALL
-      (SELECT seq, op, shard, ids::text, payload
-        FROM "{I:tube}"
-        WHERE shard % {SQL:partitions} = {SQL:partition} AND op = 'B'
-        ORDER BY seq)
-    $sql$,
+    CASE
+      WHEN exclude_backfill
+      THEN
+        $sql$
+          SELECT seq, op, shard, ids::text, payload
+            FROM "{I:tube}"
+            WHERE shard % {SQL:partitions} = {SQL:partition} AND op <> 'B'
+            ORDER BY seq
+        $sql$
+      ELSE
+        $sql$
+          (SELECT seq, op, shard, ids::text, payload
+            FROM "{I:tube}"
+            WHERE shard % {SQL:partitions} = {SQL:partition} AND op <> 'B'
+            ORDER BY seq)
+          UNION ALL
+          (SELECT seq, op, shard, ids::text, payload
+            FROM "{I:tube}"
+            WHERE shard % {SQL:partitions} = {SQL:partition} AND op = 'B'
+            ORDER BY seq)
+        $sql$
+    END,
     'tube', tube,
     'partition', partition::text,
     'partitions', partitions::text
@@ -33,8 +46,9 @@ BEGIN
 END;
 $$;
 
-COMMENT ON FUNCTION tube_pods_sql(text, integer, integer)
+COMMENT ON FUNCTION tube_pods_sql(text, integer, integer, boolean)
   IS 'Returns a generated SQL query text which, when executed, reads from some partition of the tube. '
      'See https://stackoverflow.com/a/42294524 on why we cannot use FETCH ALL and cursor for this usecase '
      '(and we also do not want to use FETCH N multiple times since it does not differ much from sending '
-     'multiple queries; we want a single cheap continuous stream of results)';
+     'multiple queries; we want a single cheap continuous stream of results). If exclude_backfill = true, '
+     'then the SQL will fetch only non-backfill pods.';

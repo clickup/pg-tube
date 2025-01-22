@@ -33,7 +33,7 @@ export default class Backfiller {
    */
   scheduleBackfill(
     options: BackfillerScheduleCollectOptions,
-    onDone: () => void
+    onDone: () => void,
   ): void {
     if (this._backfillingShards.size > 0) {
       return;
@@ -54,14 +54,14 @@ export default class Backfiller {
 
   private async backfillImpl(
     options: BackfillerScheduleCollectOptions,
-    onDone: () => void
+    onDone: () => void,
   ): Promise<void> {
     await this._options.upstream.backfill(
       this._options.timeoutMs,
       options.tube,
       options.tbl,
       options.orderCol,
-      options.shard
+      options.shard,
     );
     await delay(4000);
     onDone();

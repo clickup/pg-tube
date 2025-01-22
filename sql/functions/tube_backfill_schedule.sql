@@ -60,5 +60,5 @@ $$;
 COMMENT ON FUNCTION tube_backfill_schedule(text, text, integer, integer)
   IS 'Adds special pods to the tube which will then be picked up by a Backfiller worker to inject '
      'backfill pods for the provided shards range. Backfill pods injection takes time (the source '
-     'table needs to be full-scanned and ordered), so we deletage it to the worker to run in '
+     'table needs to be full-scanned and ordered), so we delegate it to the worker to run in '
      'background and with limited concurrency.';

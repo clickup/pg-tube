@@ -12,7 +12,7 @@ export interface DownstreamOptions {
   readonly process: (touches: Touch[]) => Promise<void>;
   /** Called after process() is called for a batch. */
   readonly count?: (
-    ops: Partial<Record<Op | "success" | "error", number>>
+    ops: Partial<Record<Op | "success" | "error", number>>,
   ) => void;
 }
 

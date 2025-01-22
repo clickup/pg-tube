@@ -26,5 +26,5 @@ END;
 $$;
 
 COMMENT ON FUNCTION _tube_has_backfill_end_pod(text, integer)
-  IS 'Returns true if backfill_end control pod for the provided shard is '
+  IS 'Returns TRUE if backfill_end control pod for the provided shard is '
      'already in the tube (which means that backfill is already running).';
